@@ -1,5 +1,5 @@
 {
-  description = "Next Neon CI Template — pinned Node/sops/age/vercel; Docker via host daemon";
+  description = "Next Neon CI Template — pinned CI shell; Docker via host daemon";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
@@ -17,7 +17,6 @@
             nodePackages.npm
             sops
             age
-            nodePackages.vercel
             actionlint
             shellcheck
             uv

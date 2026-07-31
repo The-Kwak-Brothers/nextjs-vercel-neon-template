@@ -56,47 +56,17 @@
     "tsx": "^4.23.1",
     "typescript": "^5",
     "typescript-eslint": "^8.65.0",
-    "vercel": "^58.4.4",
     "vitest": "^4.1.10"
   },
   "overrides": {
-    "@tootallnate/once": "2.0.1",
     "@ts-morph/common": {
       "minimatch": "3.1.5"
-    },
-    "@vercel/backends": {
-      "path-to-regexp": "8.4.2"
-    },
-    "@vercel/express": {
-      "path-to-regexp": "8.4.2"
-    },
-    "@vercel/fun": {
-      "path-to-regexp": "8.4.2",
-      "tar": "7.5.22"
-    },
-    "@vercel/hono": {
-      "path-to-regexp": "8.4.2"
-    },
-    "@vercel/node": {
-      "path-to-regexp": "6.3.0",
-      "undici": "6.28.0"
-    },
-    "@vercel/remix-builder": {
-      "path-to-regexp": "6.3.0"
-    },
-    "@vercel/static-config": {
-      "ajv": "8.20.0"
     },
     "brace-expansion": "5.0.9",
     "esbuild": "0.28.1",
     "js-yaml": "4.3.0",
     "minimatch": "10.2.6",
     "postcss": "8.5.25",
-    "sharp": "0.35.3",
-    "smol-toml": "1.7.1",
-    "tar": "7.5.22",
-    "vercel": {
-      "undici": "6.28.0"
-    }
+    "sharp": "0.35.3"
   }
 }
