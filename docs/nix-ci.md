@@ -6,9 +6,11 @@
 
 - Node.js 22 + npm
 - `sops` + `age`
-- Vercel CLI
 - `actionlint`, `shellcheck`, `yq`, `uv`, and `osv-scanner`
 - git, jq, python3
+
+The current Vercel CLI is pinned by `package-lock.json` and installed by
+`npm ci`; it is intentionally not duplicated by the slower-moving Nix package.
 
 Both GitHub Actions and GitLab CI should invoke quality/deploy scripts via:
 
