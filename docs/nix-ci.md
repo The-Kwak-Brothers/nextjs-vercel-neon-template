@@ -9,8 +9,8 @@
 - `actionlint`, `shellcheck`, `yq`, `uv`, and `osv-scanner`
 - git, jq, python3
 
-The current Vercel CLI is pinned by `package-lock.json` and installed by
-`npm ci`; it is intentionally not duplicated by the slower-moving Nix package.
+`vercel` is expected on PATH from the host or CI image; it is not provided by
+the flake or as an npm dependency.
 
 Both GitHub Actions and GitLab CI should invoke quality/deploy scripts via:
 
