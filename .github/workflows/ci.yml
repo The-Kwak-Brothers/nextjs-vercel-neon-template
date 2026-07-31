@@ -20,10 +20,13 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: DeterminateSystems/nix-installer-action@v16
+      - uses: DeterminateSystems/nix-installer-action@v22
+        with:
+          # Preserve upstream Nix; action default flipped to Determinate in v21+.
+          determinate: false
       - name: Validate deploy target
         run: |
           case "$DEPLOY_TARGET" in
@@ -48,8 +51,11 @@ jobs:
     env:
       DEPLOY_TARGET: ${{ matrix.target }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@v16
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@v22
+        with:
+          # Preserve upstream Nix; action default flipped to Determinate in v21+.
+          determinate: false
       - run: nix develop -c npm ci
       - name: Verify provider-neutral properties and states
         run: |
@@ -68,10 +74,13 @@ jobs:
       group: preview-cloud-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: DeterminateSystems/nix-installer-action@v16
+      - uses: DeterminateSystems/nix-installer-action@v22
+        with:
+          # Preserve upstream Nix; action default flipped to Determinate in v21+.
+          determinate: false
       - name: Check deploy relevance
         id: gate
         run: |
@@ -127,10 +136,13 @@ jobs:
       group: preview-selfhosted-${{ vars.SELFHOSTED_PREVIEW_MODE == 'fixed' && 'fixed' || github.event.pull_request.number }}
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: DeterminateSystems/nix-installer-action@v16
+      - uses: DeterminateSystems/nix-installer-action@v22
+        with:
+          # Preserve upstream Nix; action default flipped to Determinate in v21+.
+          determinate: false
       - name: Check deploy relevance
         id: gate
         run: |

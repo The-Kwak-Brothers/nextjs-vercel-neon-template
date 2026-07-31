@@ -32,8 +32,11 @@ jobs:
       group: preview-cloud-${{ github.event.pull_request.number }}
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@v16
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@v22
+        with:
+          # Preserve upstream Nix; action default flipped to Determinate in v21+.
+          determinate: false
       - run: nix develop -c npm ci
       - name: Delete Neon branch
         env:
@@ -52,8 +55,11 @@ jobs:
       group: preview-selfhosted-${{ vars.SELFHOSTED_PREVIEW_MODE == 'fixed' && 'fixed' || github.event.pull_request.number }}
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
-      - uses: DeterminateSystems/nix-installer-action@v16
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@v22
+        with:
+          # Preserve upstream Nix; action default flipped to Determinate in v21+.
+          determinate: false
       - run: nix develop -c npm ci
       - name: Remove Compose preview and Postgres database
         env:
