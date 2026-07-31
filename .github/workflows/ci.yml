@@ -1,0 +1,178 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  DEPLOY_TARGET: ${{ vars.DEPLOY_TARGET }}
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: DeterminateSystems/nix-installer-action@v16
+      - name: Validate deploy target
+        run: |
+          case "$DEPLOY_TARGET" in
+            cloud|selfhosted) ;;
+            *) echo "Set repository variable DEPLOY_TARGET to cloud or selfhosted." >&2; exit 1 ;;
+          esac
+      - name: Install locked dependencies
+        run: nix develop -c npm ci
+      - name: Validate workflows and project
+        run: |
+          nix develop -c actionlint
+          nix develop -c shellcheck scripts/ci/*.sh
+          nix develop -c yq eval '.' ci/gitlab-ci.example.yml >/dev/null
+          nix develop -c npm run ci:check
+
+  state-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [cloud, selfhosted]
+    env:
+      DEPLOY_TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@v16
+      - run: nix develop -c npm ci
+      - name: Verify provider-neutral properties and states
+        run: |
+          nix develop -c npm run test:property
+          nix develop -c npm run test:state
+
+  preview-cloud:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      vars.DEPLOY_TARGET == 'cloud'
+    needs: [quality, state-matrix]
+    runs-on: ubuntu-latest
+    environment: preview
+    concurrency:
+      group: preview-cloud-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: DeterminateSystems/nix-installer-action@v16
+      - name: Check deploy relevance
+        id: gate
+        run: |
+          if nix develop -c ./scripts/ci/should-deploy.sh; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install locked dependencies
+        if: steps.gate.outputs.deploy == 'true'
+        run: nix develop -c npm ci
+      - name: Decrypt application secrets
+        if: steps.gate.outputs.deploy == 'true'
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          if [[ -z "${SOPS_AGE_KEY:-}" ]]; then
+            echo "SOPS_AGE_KEY is required for preview decrypt." >&2
+            exit 1
+          fi
+          nix develop -c ./scripts/ci/sops-decrypt.sh
+      - name: Create or reuse Neon branch
+        if: steps.gate.outputs.deploy == 'true'
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: nix develop -c npm run ci:ephemeral-db-setup
+      - name: Deploy CI-owned Vercel preview
+        if: steps.gate.outputs.deploy == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: nix develop -c npm run ci:preview-deploy
+      - name: Verify deployed contracts and states
+        if: steps.gate.outputs.deploy == 'true'
+        run: |
+          nix develop -c npm run ci:contract
+          nix develop -c npm run test:state
+          nix develop -c npm run ci:seo-live
+
+  preview-selfhosted:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      vars.DEPLOY_TARGET == 'selfhosted'
+    needs: [quality, state-matrix]
+    runs-on: [self-hosted, linux, x64]
+    environment: preview
+    concurrency:
+      group: preview-selfhosted-${{ vars.SELFHOSTED_PREVIEW_MODE == 'fixed' && 'fixed' || github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: DeterminateSystems/nix-installer-action@v16
+      - name: Check deploy relevance
+        id: gate
+        run: |
+          if nix develop -c ./scripts/ci/should-deploy.sh; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install locked dependencies
+        if: steps.gate.outputs.deploy == 'true'
+        run: nix develop -c npm ci
+      - name: Decrypt application secrets
+        if: steps.gate.outputs.deploy == 'true'
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          if [[ -z "${SOPS_AGE_KEY:-}" ]]; then
+            echo "SOPS_AGE_KEY is required for preview decrypt." >&2
+            exit 1
+          fi
+          nix develop -c ./scripts/ci/sops-decrypt.sh
+      - name: Create or reuse Postgres database
+        if: steps.gate.outputs.deploy == 'true'
+        env:
+          POSTGRES_ADMIN_URL: ${{ secrets.POSTGRES_ADMIN_URL }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: nix develop -c npm run ci:ephemeral-db-setup
+      - name: Deploy Docker Compose preview
+        if: steps.gate.outputs.deploy == 'true'
+        env:
+          POSTGRES_ADMIN_URL: ${{ secrets.POSTGRES_ADMIN_URL }}
+          PREVIEW_BASE_DOMAIN: ${{ vars.PREVIEW_BASE_DOMAIN }}
+          SELFHOSTED_FIXED_PORT: ${{ vars.SELFHOSTED_FIXED_PORT }}
+          SELFHOSTED_FIXED_PREVIEW_URL: ${{ vars.SELFHOSTED_FIXED_PREVIEW_URL }}
+          SELFHOSTED_PREVIEW_MODE: ${{ vars.SELFHOSTED_PREVIEW_MODE }}
+          SELFHOSTED_PREVIEW_NETWORK: ${{ vars.SELFHOSTED_PREVIEW_NETWORK }}
+          TRAEFIK_CERT_RESOLVER: ${{ vars.TRAEFIK_CERT_RESOLVER }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: nix develop -c npm run ci:preview-deploy
+      - name: Verify deployed contracts and states
+        if: steps.gate.outputs.deploy == 'true'
+        run: |
+          nix develop -c npm run ci:contract
+          nix develop -c npm run test:state
+          nix develop -c npm run ci:seo-live

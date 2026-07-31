@@ -1,0 +1,7 @@
+[project]
+name = "next-neon-ci-contract-tools"
+version = "0.0.0"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+  "schemathesis==4.24.3",
+]

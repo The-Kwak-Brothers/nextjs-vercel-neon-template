@@ -1,0 +1,10 @@
+# Fixed-URL fallback for SELFHOSTED_PREVIEW_MODE=fixed.
+# Replace staging.example.com and keep the app bound to loopback.
+staging.example.com {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:{$SELFHOSTED_FIXED_PORT:3000}
+}
+
+# Multi-PR dynamic previews use the Traefik Docker labels in
+# docker-compose.ci.yml; stock Caddy cannot discover compose projects from a
+# wildcard host without an additional Docker-discovery plugin.

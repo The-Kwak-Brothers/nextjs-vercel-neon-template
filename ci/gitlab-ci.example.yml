@@ -1,0 +1,163 @@
+# Copy to .gitlab-ci.yml or include from here.
+# Set DEPLOY_TARGET in GitLab CI/CD variables; this file has no provider default.
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+variables:
+  FF_USE_FASTZIP: "true"
+  NEXT_TELEMETRY_DISABLED: "1"
+
+stages:
+  - quality
+  - prepare
+  - preview
+  - cleanup
+
+.nix_job:
+  image: nixos/nix:2.24.10
+  before_script:
+    - nix develop -c npm ci
+
+quality:
+  extends: .nix_job
+  stage: quality
+  script:
+    - |
+      case "$DEPLOY_TARGET" in
+        cloud|selfhosted) ;;
+        *) echo "Set DEPLOY_TARGET to cloud or selfhosted in CI/CD variables." >&2; exit 1 ;;
+      esac
+    - nix develop -c actionlint
+    - nix develop -c shellcheck scripts/ci/*.sh
+    - nix develop -c yq eval '.' ci/gitlab-ci.example.yml >/dev/null
+    - nix develop -c npm run ci:check
+
+# Configure newest_first before a deployment job enters its resource group.
+# GITLAB_TOKEN must be a masked project/group token with API scope.
+configure:resource-group:
+  extends: .nix_job
+  stage: prepare
+  needs: [quality]
+  rules:
+    - if: >-
+        $CI_PIPELINE_SOURCE == "merge_request_event" &&
+        $CI_MERGE_REQUEST_SOURCE_PROJECT_ID == $CI_PROJECT_ID &&
+        ($DEPLOY_TARGET == "cloud" || $DEPLOY_TARGET == "selfhosted")
+  script:
+    - nix develop -c ./scripts/ci/gitlab-resource-group-newest-first.sh "$CI_MERGE_REQUEST_IID"
+
+preview:cloud:
+  extends: .nix_job
+  stage: preview
+  needs: ["configure:resource-group"]
+  resource_group: preview-$CI_MERGE_REQUEST_IID
+  rules:
+    - if: >-
+        $CI_PIPELINE_SOURCE == "merge_request_event" &&
+        $CI_MERGE_REQUEST_SOURCE_PROJECT_ID == $CI_PROJECT_ID &&
+        $DEPLOY_TARGET == "cloud"
+  script:
+    - |
+      if ! nix develop -c ./scripts/ci/should-deploy.sh; then
+        echo "Preview is not required for this change."
+        exit 0
+      fi
+      if [[ -z "${SOPS_AGE_KEY:-}${SOPS_AGE_KEY_FILE:-}" ]]; then
+        echo "SOPS_AGE_KEY or SOPS_AGE_KEY_FILE is required for preview decrypt." >&2
+        exit 1
+      fi
+      nix develop -c ./scripts/ci/sops-decrypt.sh
+      nix develop -c npm run ci:ephemeral-db-setup
+      nix develop -c npm run ci:preview-deploy
+      nix develop -c npm run ci:contract
+      nix develop -c npm run test:state
+      nix develop -c npm run ci:seo-live
+  environment:
+    name: preview/$CI_MERGE_REQUEST_IID
+    on_stop: cleanup:cloud
+
+preview:selfhosted:
+  extends: .nix_job
+  stage: preview
+  needs: ["configure:resource-group"]
+  resource_group: $PREVIEW_RESOURCE_GROUP
+  variables:
+    PREVIEW_RESOURCE_GROUP: preview-$CI_MERGE_REQUEST_IID
+  rules:
+    - if: >-
+        $CI_PIPELINE_SOURCE == "merge_request_event" &&
+        $CI_MERGE_REQUEST_SOURCE_PROJECT_ID == $CI_PROJECT_ID &&
+        $DEPLOY_TARGET == "selfhosted" &&
+        $SELFHOSTED_PREVIEW_MODE == "fixed"
+      variables:
+        PREVIEW_RESOURCE_GROUP: preview-selfhosted-fixed
+    - if: >-
+        $CI_PIPELINE_SOURCE == "merge_request_event" &&
+        $CI_MERGE_REQUEST_SOURCE_PROJECT_ID == $CI_PROJECT_ID &&
+        $DEPLOY_TARGET == "selfhosted"
+  script:
+    - |
+      if ! nix develop -c ./scripts/ci/should-deploy.sh; then
+        echo "Preview is not required for this change."
+        exit 0
+      fi
+      if [[ -z "${SOPS_AGE_KEY:-}${SOPS_AGE_KEY_FILE:-}" ]]; then
+        echo "SOPS_AGE_KEY or SOPS_AGE_KEY_FILE is required for preview decrypt." >&2
+        exit 1
+      fi
+      nix develop -c ./scripts/ci/sops-decrypt.sh
+      nix develop -c npm run ci:ephemeral-db-setup
+      nix develop -c npm run ci:preview-deploy
+      nix develop -c npm run ci:contract
+      nix develop -c npm run test:state
+      nix develop -c npm run ci:seo-live
+  tags: [docker, nix]
+  environment:
+    name: preview/$CI_MERGE_REQUEST_IID
+    on_stop: cleanup:selfhosted
+
+cleanup:cloud:
+  extends: .nix_job
+  stage: cleanup
+  resource_group: preview-$CI_MERGE_REQUEST_IID
+  rules:
+    - if: >-
+        $CI_PIPELINE_SOURCE == "merge_request_event" &&
+        $CI_MERGE_REQUEST_SOURCE_PROJECT_ID == $CI_PROJECT_ID &&
+        $DEPLOY_TARGET == "cloud"
+      when: manual
+  environment:
+    name: preview/$CI_MERGE_REQUEST_IID
+    action: stop
+  script:
+    - nix develop -c npm run ci:ephemeral-cleanup
+
+cleanup:selfhosted:
+  extends: .nix_job
+  stage: cleanup
+  resource_group: $PREVIEW_RESOURCE_GROUP
+  variables:
+    PREVIEW_RESOURCE_GROUP: preview-$CI_MERGE_REQUEST_IID
+  rules:
+    - if: >-
+        $CI_PIPELINE_SOURCE == "merge_request_event" &&
+        $CI_MERGE_REQUEST_SOURCE_PROJECT_ID == $CI_PROJECT_ID &&
+        $DEPLOY_TARGET == "selfhosted" &&
+        $SELFHOSTED_PREVIEW_MODE == "fixed"
+      variables:
+        PREVIEW_RESOURCE_GROUP: preview-selfhosted-fixed
+      when: manual
+    - if: >-
+        $CI_PIPELINE_SOURCE == "merge_request_event" &&
+        $CI_MERGE_REQUEST_SOURCE_PROJECT_ID == $CI_PROJECT_ID &&
+        $DEPLOY_TARGET == "selfhosted"
+      when: manual
+  tags: [docker, nix]
+  environment:
+    name: preview/$CI_MERGE_REQUEST_IID
+    action: stop
+  script:
+    - nix develop -c npm run ci:ephemeral-cleanup

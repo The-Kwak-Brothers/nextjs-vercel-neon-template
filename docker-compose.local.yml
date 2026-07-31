@@ -1,0 +1,56 @@
+# Offline-capable local stack. Independent of DEPLOY_TARGET used in remote CI.
+# Adapter env-var contract: DATABASE_URL (required), DEPLOY_TARGET (informational).
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dev
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - local_pg:/var/lib/postgresql/data
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SITE_URL: http://localhost:${APP_HOST_PORT:-3123}
+    ports:
+      # Override with APP_HOST_PORT if the default host port is taken.
+      - "127.0.0.1:${APP_HOST_PORT:-3123}:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/dev
+      DATABASE_URL_UNPOOLED: postgresql://postgres:postgres@postgres:5432/dev
+      DEPLOY_TARGET: selfhosted
+      NEXT_PUBLIC_SITE_URL: http://localhost:${APP_HOST_PORT:-3123}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+      args:
+        NEXT_PUBLIC_SITE_URL: http://localhost:${APP_HOST_PORT:-3123}
+    command: ["sh", "-c", "npm run db:migrate && npm run db:seed"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/dev
+      DATABASE_URL_UNPOOLED: postgresql://postgres:postgres@postgres:5432/dev
+      DEPLOY_TARGET: selfhosted
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  local_pg:

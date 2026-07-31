@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Next Neon CI Template
 
-## Getting Started
+Dual-mode Next.js CI template:
 
-First, run the development server:
+| `DEPLOY_TARGET` | Database | Deploy |
+|-----------------|----------|--------|
+| `cloud` | Neon ephemeral branches | CI-owned `vercel deploy --prebuilt` |
+| `selfhosted` | Postgres 16 `pr_{N}` DBs | Docker Compose (`preview-pr-{N}`) |
+
+Local stack is always offline-capable via `docker-compose.local.yml`.
+
+## Quick start
 
 ```bash
+npm ci
+# or: nix develop -c npm ci
+export DEPLOY_TARGET=selfhosted
+export DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/dev
+export DATABASE_URL_UNPOOLED="$DATABASE_URL"
+docker compose -f docker-compose.local.yml up -d postgres
+npm run db:migrate && npm run db:seed
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# full stack (app on host port 3123 by default; override with APP_HOST_PORT):
+# docker compose -f docker-compose.local.yml up --build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Secrets
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The repository ships only a plaintext **schema example**, never a fake
+`*.enc.*` file or private age identity. Use `scripts/ci/bootstrap-sops.sh` with
+an age public recipient and plaintext kept outside the repository, then store
+the private identity in the CI secret `SOPS_AGE_KEY`. See
+`secrets/README.md`; preview jobs fail until this bootstrap is complete.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Verify
 
-## Learn More
+```bash
+DEPLOY_TARGET=selfhosted nix develop -c npm run ci:check
+```
 
-To learn more about Next.js, take a look at the following resources:
+The Nix shell supplies required quality tools such as `osv-scanner`,
+`actionlint`, `shellcheck`, `yq`, and `uv`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Key paths
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Adapters: `src/lib/infra/`
+- CI scripts: `scripts/ci/`
+- Secrets: `secrets/` (`secrets/README.md`)
+- GitHub Actions: `.github/workflows/ci.yml`
+- GitLab example: `ci/gitlab-ci.example.yml` (`process_mode: newest_first` both modes)
+- Docs: `docs/`, agent rules: `AGENTS.md`
 
-## Deploy on Vercel
+## Non-goals
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Neon OSS / page-server stack
+- Dual Vercel Git + CI deploy
+- Nix `dockerTools` as default image builder
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See `docs/deploy-targets.md`, `docs/nix-ci.md`, and `docs/cost-controls.md`.

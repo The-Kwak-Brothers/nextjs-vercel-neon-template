@@ -2,26 +2,101 @@
   "name": "nextjs-vercel-neon-ci-template",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "dev": "next dev",
+    "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit tests/contract",
+    "test:property": "vitest run tests/property",
+    "test:state": "vitest run tests/state",
+    "test:seo": "vitest run tests/seo",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "ci:check-relations": "tsx scripts/check-relations.ts",
+    "ci:export-openapi": "tsx scripts/export-openapi.ts",
+    "ci:audit": "bash scripts/ci/audit.sh",
+    "ci:validate-secrets": "bash scripts/ci/validate-secret-files.sh",
+    "ci:check": "npm run ci:validate-secrets && npm run lint && npm run typecheck && npm run test:unit && npm run test:property && npm run test:state && npm run test:seo && npm run ci:check-relations && npm run ci:export-openapi && npm run ci:audit && npm run build",
+    "ci:ephemeral-db-setup": "tsx scripts/ci/ephemeral-db-setup.ts",
+    "ci:preview-deploy": "tsx scripts/ci/preview-deploy.ts",
+    "ci:ephemeral-cleanup": "tsx scripts/ci/ephemeral-cleanup.ts",
+    "ci:contract": "bash scripts/ci/contract-check.sh",
+    "ci:seo-live": "bash scripts/ci/seo-check.sh",
+    "ci:should-deploy": "bash scripts/ci/should-deploy.sh"
   },
   "dependencies": {
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "next": "15.5.22"
+    "@asteasolutions/zod-to-openapi": "^9.1.0",
+    "drizzle-orm": "^0.45.2",
+    "drizzle-zod": "^0.8.3",
+    "next": "^16.2.12",
+    "postgres": "^3.4.9",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@eslint/js": "^10.0.1",
+    "@next/eslint-plugin-next": "^16.2.12",
     "@tailwindcss/postcss": "^4",
+    "@types/node": "^22.20.1",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^10.8.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "fast-check": "^4.9.0",
+    "pg": "^8.22.0",
     "tailwindcss": "^4",
-    "eslint": "^9",
-    "eslint-config-next": "15.5.22",
-    "@eslint/eslintrc": "^3"
+    "tsx": "^4.23.1",
+    "typescript": "^5",
+    "typescript-eslint": "^8.65.0",
+    "vercel": "^58.4.4",
+    "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "@tootallnate/once": "2.0.1",
+    "@ts-morph/common": {
+      "minimatch": "3.1.5"
+    },
+    "@vercel/backends": {
+      "path-to-regexp": "8.4.2"
+    },
+    "@vercel/express": {
+      "path-to-regexp": "8.4.2"
+    },
+    "@vercel/fun": {
+      "path-to-regexp": "8.4.2",
+      "tar": "7.5.22"
+    },
+    "@vercel/hono": {
+      "path-to-regexp": "8.4.2"
+    },
+    "@vercel/node": {
+      "path-to-regexp": "6.3.0",
+      "undici": "6.28.0"
+    },
+    "@vercel/remix-builder": {
+      "path-to-regexp": "6.3.0"
+    },
+    "@vercel/static-config": {
+      "ajv": "8.20.0"
+    },
+    "brace-expansion": "5.0.9",
+    "esbuild": "0.28.1",
+    "js-yaml": "4.3.0",
+    "minimatch": "10.2.6",
+    "postcss": "8.5.25",
+    "sharp": "0.35.3",
+    "smol-toml": "1.7.1",
+    "tar": "7.5.22",
+    "vercel": {
+      "undici": "6.28.0"
+    }
   }
 }

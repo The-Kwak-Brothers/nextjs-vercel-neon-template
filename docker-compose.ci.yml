@@ -1,0 +1,44 @@
+# Selfhosted PR preview. The adapter creates/reuses the external Postgres
+# database first, then starts this app through the host Docker daemon.
+services:
+  app:
+    image: ${APP_IMAGE:-next-neon-ci-template:local}
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DATABASE_URL_UNPOOLED: ${DATABASE_URL_UNPOOLED:-${DATABASE_URL}}
+      DEPLOY_TARGET: selfhosted
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?NEXT_PUBLIC_SITE_URL is required}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    init: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    labels:
+      - "preview.pr=${PR_NUMBER:?PR_NUMBER is required}"
+      - "traefik.enable=true"
+      - "traefik.docker.network=${SELFHOSTED_PREVIEW_NETWORK:-preview-proxy}"
+      - "traefik.http.routers.preview-${PR_NUMBER}.rule=Host(`${PREVIEW_HOST:?PREVIEW_HOST is required}`)"
+      - "traefik.http.routers.preview-${PR_NUMBER}.entrypoints=websecure"
+      - "traefik.http.routers.preview-${PR_NUMBER}.tls=true"
+      - "traefik.http.routers.preview-${PR_NUMBER}.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.services.preview-${PR_NUMBER}.loadbalancer.server.port=3000"
+    networks:
+      - preview-proxy
+
+networks:
+  preview-proxy:
+    external: true
+    name: ${SELFHOSTED_PREVIEW_NETWORK:-preview-proxy}

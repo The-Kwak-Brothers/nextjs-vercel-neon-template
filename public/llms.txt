@@ -1,0 +1,17 @@
+# Next Neon CI Template
+
+> Dual-mode Next.js CI template: DEPLOY_TARGET=cloud (Neon + Vercel) or selfhosted (Postgres + Docker).
+
+This file is low-cost AEO hygiene, not a proven ranking signal.
+
+## Pages
+
+- / : Product overview and pipeline demo entry
+- /api/health : Liveness probe
+- /api/items : Demo items list/create API
+- /api/openapi : OpenAPI 3 document generated from drizzle-zod contracts
+
+## Notes
+
+- Selfhosted mode is plain Postgres, not Neon OSS.
+- CI owns deploys; do not enable Vercel Git auto-deploy in cloud mode.

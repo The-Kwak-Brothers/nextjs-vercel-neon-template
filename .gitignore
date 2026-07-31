@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+tools/schemathesis/.venv/
 
 # next.js
 /.next/
@@ -32,6 +33,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +41,22 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# CI / secrets outputs
+ci-outputs.env
+openapi.json
+secrets/secrets.dec.yaml
+secrets/*.dec.yaml
+secrets/*.dec.json
+.age-key*
+*.agekey
+secrets/keys.txt
+secrets/age-key*.txt
+**/sops/age/keys.txt
+
+# nix
+.result
+.result-*
+
+# Schemathesis local cache
+.schemathesis/

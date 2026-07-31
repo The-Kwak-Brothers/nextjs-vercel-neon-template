@@ -1,0 +1,62 @@
+name: preview-cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+env:
+  DEPLOY_TARGET: ${{ vars.DEPLOY_TARGET }}
+
+jobs:
+  validate:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate deploy target
+        run: |
+          case "$DEPLOY_TARGET" in
+            cloud|selfhosted) ;;
+            *) echo "Set repository variable DEPLOY_TARGET to cloud or selfhosted." >&2; exit 1 ;;
+          esac
+
+  cleanup-cloud:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      vars.DEPLOY_TARGET == 'cloud'
+    needs: validate
+    runs-on: ubuntu-latest
+    concurrency:
+      group: preview-cloud-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@v16
+      - run: nix develop -c npm ci
+      - name: Delete Neon branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: nix develop -c npm run ci:ephemeral-cleanup
+
+  cleanup-selfhosted:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      vars.DEPLOY_TARGET == 'selfhosted'
+    needs: validate
+    runs-on: [self-hosted, linux, x64]
+    concurrency:
+      group: preview-selfhosted-${{ vars.SELFHOSTED_PREVIEW_MODE == 'fixed' && 'fixed' || github.event.pull_request.number }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@v16
+      - run: nix develop -c npm ci
+      - name: Remove Compose preview and Postgres database
+        env:
+          POSTGRES_ADMIN_URL: ${{ secrets.POSTGRES_ADMIN_URL }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: nix develop -c npm run ci:ephemeral-cleanup

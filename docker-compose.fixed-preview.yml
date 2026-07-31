@@ -1,0 +1,7 @@
+# Fixed-URL fallback only. One preview can own this host port at a time.
+services:
+  app:
+    ports:
+      - "127.0.0.1:${APP_HOST_PORT:-3000}:3000"
+    labels:
+      - "traefik.enable=false"
