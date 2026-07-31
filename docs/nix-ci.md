@@ -6,11 +6,9 @@
 
 - Node.js 22 + npm
 - `sops` + `age`
+- Vercel CLI
 - `actionlint`, `shellcheck`, `yq`, `uv`, and `osv-scanner`
 - git, jq, python3
-
-`vercel` is expected on PATH from the host or CI image; it is not provided by
-the flake or as an npm dependency.
 
 Both GitHub Actions and GitLab CI should invoke quality/deploy scripts via:
 

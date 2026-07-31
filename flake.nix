@@ -17,6 +17,7 @@
             nodePackages.npm
             sops
             age
+            nodePackages.vercel
             actionlint
             shellcheck
             uv
